@@ -1,4 +1,5 @@
 const STATE_KEY = "sessionState";
+const GROW_URL = "https://www.linkedin.com/mynetwork/grow/";
 
 function parseFollowers(text) {
   const match = text.match(/([\d,.]+)\s+followers?/i);
@@ -16,6 +17,7 @@ function readCardData(card) {
   const summary = summaryEl?.textContent?.trim() || "";
 
   return {
+    actionType: "profile_review",
     name: nameEl?.textContent?.trim() || "Unknown",
     headline,
     summary,
@@ -33,6 +35,72 @@ function matchesCriteria(profile, settings) {
 
 function getResultCards() {
   return [...document.querySelectorAll("li.reusable-search__result-container")];
+}
+
+function isGrowPage() {
+  return location.pathname.startsWith("/mynetwork/grow");
+}
+
+function isPeopleSearchPage() {
+  return location.pathname.startsWith("/search/results/people");
+}
+
+function normalizeProfileUrl(url) {
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
+
+function extractGrowCandidates(settings) {
+  const candidates = [];
+  const seen = new Set();
+
+  document.querySelectorAll("a[href*='/in/']").forEach((link) => {
+    const profileUrl = normalizeProfileUrl(link.href || "");
+    if (!profileUrl || seen.has(profileUrl)) {
+      return;
+    }
+
+    const container = link.closest("li, article, section, div");
+    if (!container) {
+      return;
+    }
+
+    const actionButtons = [...container.querySelectorAll("button")];
+    const inviteButton = actionButtons.find((button) => {
+      const text = (button.textContent || "").trim().toLowerCase();
+      const aria = (button.getAttribute("aria-label") || "").toLowerCase();
+      return text === "connect" || text === "invite" || aria.includes("invite") || aria.includes("connect");
+    });
+
+    if (!inviteButton || inviteButton.disabled) {
+      return;
+    }
+
+    const name = (link.textContent || "").trim() || "Unknown";
+    const contextText = (container.textContent || "").replace(/\s+/g, " ").trim();
+    const candidate = {
+      actionType: "profile_review",
+      source: "grow",
+      name,
+      headline: contextText,
+      summary: contextText,
+      followers: parseFollowers(contextText),
+      profileUrl
+    };
+
+    if (matchesCriteria(candidate, settings)) {
+      seen.add(profileUrl);
+      candidates.push(candidate);
+    }
+  });
+
+  return candidates;
 }
 
 async function getSettings() {
@@ -72,20 +140,43 @@ function resetIfNeeded(state) {
   }
 }
 
+function statsResponse(state, settings, matches, message = "") {
+  return {
+    matches,
+    weeklyQueued: state.weeklyQueued,
+    weeklyTarget: settings.weeklyTarget,
+    dailyReviewed: state.dailyReviewed,
+    dailyCap: settings.dailyCap,
+    message
+  };
+}
+
+function isDuplicateQueueItem(queueItem, profile) {
+  return (
+    normalizeProfileUrl(queueItem.profileUrl) === normalizeProfileUrl(profile.profileUrl) &&
+    (queueItem.actionType || "profile_review") === profile.actionType
+  );
+}
+
 async function scanPage() {
   const settings = await getSettings();
   const state = await getState();
   resetIfNeeded(state);
 
-  const cards = getResultCards();
-  const matched = cards
-    .map(readCardData)
-    .filter((profile) => profile.profileUrl)
-    .filter((profile) => matchesCriteria(profile, settings));
+  if (!isPeopleSearchPage() && !isGrowPage()) {
+    window.location.assign(GROW_URL);
+    await setState(state);
+    return statsResponse(state, settings, state.queue.length, "Navigating to My Network > Grow.");
+  }
 
-  const newItems = matched.filter(
-    (profile) => !state.queue.some((queued) => queued.profileUrl === profile.profileUrl)
-  );
+  const matched = isPeopleSearchPage()
+    ? getResultCards()
+        .map(readCardData)
+        .filter((profile) => profile.profileUrl)
+        .filter((profile) => matchesCriteria(profile, settings))
+    : extractGrowCandidates(settings);
+
+  const newItems = matched.filter((profile) => !state.queue.some((queued) => isDuplicateQueueItem(queued, profile)));
 
   state.queue.push(...newItems);
   state.weeklyQueued = state.queue.length;
@@ -94,23 +185,20 @@ async function scanPage() {
 
   highlightMatches(matched);
 
-  return {
-    matches: matched.length,
-    weeklyQueued: state.weeklyQueued,
-    weeklyTarget: settings.weeklyTarget,
-    dailyReviewed: state.dailyReviewed,
-    dailyCap: settings.dailyCap
-  };
+  return statsResponse(state, settings, matched.length);
 }
 
 function highlightMatches(matched) {
-  const matchUrls = new Set(matched.map((m) => m.profileUrl));
-  getResultCards().forEach((card) => {
-    const linkEl = card.querySelector("a.app-aware-link");
-    if (linkEl?.href && matchUrls.has(linkEl.href)) {
-      card.style.outline = "2px solid #0a66c2";
-      card.style.borderRadius = "8px";
-      card.style.background = "#eef5ff";
+  const matchUrls = new Set(matched.map((m) => normalizeProfileUrl(m.profileUrl)));
+  document.querySelectorAll("a[href*='/in/']").forEach((linkEl) => {
+    const normalized = normalizeProfileUrl(linkEl.href || "");
+    if (normalized && matchUrls.has(normalized)) {
+      const card = linkEl.closest("li, article, section, div");
+      if (card) {
+        card.style.outline = "2px solid #0a66c2";
+        card.style.borderRadius = "8px";
+        card.style.background = "#eef5ff";
+      }
     }
   });
 }
@@ -121,13 +209,7 @@ async function openNext() {
   resetIfNeeded(state);
 
   if (state.dailyReviewed >= settings.dailyCap || state.queue.length === 0) {
-    return {
-      matches: state.queue.length,
-      weeklyQueued: state.weeklyQueued,
-      weeklyTarget: settings.weeklyTarget,
-      dailyReviewed: state.dailyReviewed,
-      dailyCap: settings.dailyCap
-    };
+    return statsResponse(state, settings, state.queue.length);
   }
 
   const next = state.queue.shift();
@@ -137,15 +219,10 @@ async function openNext() {
 
   if (next?.profileUrl) {
     window.open(next.profileUrl, "_blank", "noopener");
+    return statsResponse(state, settings, state.queue.length, "Opened next candidate profile.");
   }
 
-  return {
-    matches: state.queue.length,
-    weeklyQueued: state.weeklyQueued,
-    weeklyTarget: settings.weeklyTarget,
-    dailyReviewed: state.dailyReviewed,
-    dailyCap: settings.dailyCap
-  };
+  return statsResponse(state, settings, state.queue.length);
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
