@@ -9,9 +9,9 @@ This repository contains a **review-first** Chrome extension for LinkedIn people
 - Scans the LinkedIn **My Network > Grow** page for visible Connect/Invite candidates.
 - Highlights matching results.
 - Builds a local queue of candidates.
-- Opens the next candidate profile for manual review from either search results or My Network > Grow matches.
+- Opens the next candidate profile for manual review **or** clicks the next visible Connect button on My Network > Grow.
 
-> Note: this extension is designed for manual invite decisions after profile review.
+> Note: by default this extension does **not** auto-send invitations. It can click Connect and let you confirm in LinkedIn's dialog.
 
 ## Setup
 
@@ -28,7 +28,7 @@ This repository contains a **review-first** Chrome extension for LinkedIn people
 
 - Open extension settings via popup -> **Settings**.
 - Set your keywords, minimum follower threshold, weekly target, and daily review cap.
-- Invite sending is manual after reviewing opened profiles.
+- Keep `requireManualSend` enabled for manual confirmation before sending invitations.
 
 ## Recommended safe operating pattern
 

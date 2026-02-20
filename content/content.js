@@ -56,7 +56,7 @@ function normalizeProfileUrl(url) {
   }
 }
 
-function extractGrowCandidates(settings) {
+function extractGrowCandidates() {
   const candidates = [];
   const seen = new Set();
 
@@ -83,21 +83,15 @@ function extractGrowCandidates(settings) {
     }
 
     const name = (link.textContent || "").trim() || "Unknown";
-    const contextText = (container.textContent || "").replace(/\s+/g, " ").trim();
-    const candidate = {
-      actionType: "profile_review",
-      source: "grow",
+    seen.add(profileUrl);
+    candidates.push({
+      actionType: "grow_invite",
       name,
-      headline: contextText,
-      summary: contextText,
-      followers: parseFollowers(contextText),
+      headline: "",
+      summary: "",
+      followers: 0,
       profileUrl
-    };
-
-    if (matchesCriteria(candidate, settings)) {
-      seen.add(profileUrl);
-      candidates.push(candidate);
-    }
+    });
   });
 
   return candidates;
@@ -151,13 +145,6 @@ function statsResponse(state, settings, matches, message = "") {
   };
 }
 
-function isDuplicateQueueItem(queueItem, profile) {
-  return (
-    normalizeProfileUrl(queueItem.profileUrl) === normalizeProfileUrl(profile.profileUrl) &&
-    (queueItem.actionType || "profile_review") === profile.actionType
-  );
-}
-
 async function scanPage() {
   const settings = await getSettings();
   const state = await getState();
@@ -174,9 +161,11 @@ async function scanPage() {
         .map(readCardData)
         .filter((profile) => profile.profileUrl)
         .filter((profile) => matchesCriteria(profile, settings))
-    : extractGrowCandidates(settings);
+    : extractGrowCandidates();
 
-  const newItems = matched.filter((profile) => !state.queue.some((queued) => isDuplicateQueueItem(queued, profile)));
+  const newItems = matched.filter(
+    (profile) => !state.queue.some((queued) => normalizeProfileUrl(queued.profileUrl) === normalizeProfileUrl(profile.profileUrl))
+  );
 
   state.queue.push(...newItems);
   state.weeklyQueued = state.queue.length;
@@ -203,6 +192,35 @@ function highlightMatches(matched) {
   });
 }
 
+function findGrowInviteButton(profileUrl) {
+  const normalizedTarget = normalizeProfileUrl(profileUrl);
+  const profileLink = [...document.querySelectorAll("a[href*='/in/']")].find(
+    (link) => normalizeProfileUrl(link.href || "") === normalizedTarget
+  );
+  if (!profileLink) {
+    return null;
+  }
+
+  const container = profileLink.closest("li, article, section, div");
+  if (!container) {
+    return null;
+  }
+
+  return [...container.querySelectorAll("button")].find((button) => {
+    const text = (button.textContent || "").trim().toLowerCase();
+    const aria = (button.getAttribute("aria-label") || "").toLowerCase();
+    return (text === "connect" || text === "invite" || aria.includes("invite") || aria.includes("connect")) && !button.disabled;
+  });
+}
+
+function findDialogSendButton() {
+  return [...document.querySelectorAll("button")].find((button) => {
+    const text = (button.textContent || "").trim().toLowerCase();
+    const aria = (button.getAttribute("aria-label") || "").trim().toLowerCase();
+    return text === "send" || text === "send without a note" || aria.includes("send now") || aria.includes("send without a note");
+  });
+}
+
 async function openNext() {
   const settings = await getSettings();
   const state = await getState();
@@ -216,6 +234,30 @@ async function openNext() {
   state.dailyReviewed += 1;
   state.weeklyQueued = state.queue.length;
   await setState(state);
+
+  if (next?.actionType === "grow_invite") {
+    const inviteButton = findGrowInviteButton(next.profileUrl);
+
+    if (!inviteButton) {
+      return statsResponse(state, settings, state.queue.length, "Candidate not visible on page. Scroll and scan again.");
+    }
+
+    inviteButton.click();
+
+    if (!settings.requireManualSend) {
+      window.setTimeout(() => {
+        const sendButton = findDialogSendButton();
+        sendButton?.click();
+      }, 600);
+    }
+
+    return statsResponse(
+      state,
+      settings,
+      state.queue.length,
+      settings.requireManualSend ? "Clicked Connect. Confirm invite in LinkedIn dialog." : "Invite sent."
+    );
+  }
 
   if (next?.profileUrl) {
     window.open(next.profileUrl, "_blank", "noopener");
