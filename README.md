@@ -1,16 +1,17 @@
 # LinkedIn Connection Assistant (Chrome Extension)
 
-This repository contains a **review-first** Chrome extension for LinkedIn people-search workflows.
+This repository contains a **review-first** Chrome extension for LinkedIn people-search workflows and My Network growth invites.
 
 ## What it does
 
 - Scans LinkedIn people search results.
 - Matches profiles by your keywords (default: mental health, business administration, healthcare, c-suite) or follower count threshold.
+- Scans the LinkedIn **My Network > Grow** page for visible Connect/Invite candidates.
 - Highlights matching results.
 - Builds a local queue of candidates.
-- Opens the next candidate profile for **manual review and manual invite sending**.
+- Opens the next candidate profile for manual review **or** clicks the next visible Connect button on My Network > Grow.
 
-> Note: this extension intentionally does **not** auto-send invitations. Bulk auto-inviting can violate platform rules and risks account restrictions.
+> Note: by default this extension does **not** auto-send invitations. It can click Connect and let you confirm in LinkedIn's dialog.
 
 ## Setup
 
@@ -18,14 +19,16 @@ This repository contains a **review-first** Chrome extension for LinkedIn people
 2. Turn on **Developer mode**.
 3. Click **Load unpacked** and select this repository folder.
 4. Pin the extension.
-5. Open LinkedIn people search results page.
+5. Open LinkedIn.
 6. Click the extension icon and use **Scan this page**.
-7. Click **Open next candidate profile** and review each profile manually before inviting.
+   - If you are not on a supported page, the extension navigates to `https://www.linkedin.com/mynetwork/grow/`.
+7. Click **Open next candidate profile** to process your queue.
 
 ## Configure
 
 - Open extension settings via popup -> **Settings**.
 - Set your keywords, minimum follower threshold, weekly target, and daily review cap.
+- Keep `requireManualSend` enabled for manual confirmation before sending invitations.
 
 ## Recommended safe operating pattern
 
