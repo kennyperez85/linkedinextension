@@ -261,6 +261,7 @@ async function openNext() {
 
   if (next?.profileUrl) {
     window.open(next.profileUrl, "_blank", "noopener");
+    return statsResponse(state, settings, state.queue.length, "Opened next candidate profile.");
   }
 
   return statsResponse(state, settings, state.queue.length);
