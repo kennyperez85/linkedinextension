@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assistant Settings</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 600px; margin: 24px auto; padding: 0 16px; }
+      label { display: block; margin: 10px 0 4px; }
+      input, textarea { width: 100%; padding: 8px; }
+      button { margin-top: 14px; padding: 8px 12px; }
+      .note { background: #e7f1ff; padding: 10px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Connection Assistant Settings</h1>
+    <p class="note">This extension is intentionally review-first. You approve every invite manually to stay compliant and avoid spam-like behavior.</p>
+
+    <label for="keywords">Keywords (comma separated)</label>
+    <textarea id="keywords" rows="3"></textarea>
+
+    <label for="minFollowers">Minimum followers</label>
+    <input id="minFollowers" type="number" min="0" />
+
+    <label for="weeklyTarget">Weekly candidate target</label>
+    <input id="weeklyTarget" type="number" min="1" />
+
+    <label for="dailyCap">Daily review cap</label>
+    <input id="dailyCap" type="number" min="1" />
+
+    <button id="saveBtn">Save settings</button>
+    <p id="status"></p>
+
+    <script src="options.js"></script>
+  </body>
+</html>
