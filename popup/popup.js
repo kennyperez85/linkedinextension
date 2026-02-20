@@ -9,13 +9,17 @@ async function sendCommand(command) {
     return null;
   }
 
-  return chrome.tabs.sendMessage(tab.id, command);
+  try {
+    return await chrome.tabs.sendMessage(tab.id, command);
+  } catch {
+    return null;
+  }
 }
 
 function renderStats(data) {
   const stats = document.getElementById("stats");
   if (!data) {
-    stats.textContent = "Open a LinkedIn people search results page.";
+    stats.textContent = "Open LinkedIn and try again.";
     return;
   }
 
@@ -23,6 +27,7 @@ function renderStats(data) {
     <strong>Matched on page:</strong> ${data.matches}<br />
     <strong>Queued this week:</strong> ${data.weeklyQueued}/${data.weeklyTarget}<br />
     <strong>Daily reviewed:</strong> ${data.dailyReviewed}/${data.dailyCap}
+    ${data.message ? `<br /><em>${data.message}</em>` : ""}
   `;
 }
 
